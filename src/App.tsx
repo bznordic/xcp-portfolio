@@ -75,6 +75,7 @@ import {
   overlayBook,
   type PoolMark,
 } from "./lib/universe";
+import { Landing } from "./screens/Landing";
 import { MarketsScreen } from "./screens/MarketsScreen";
 import { PairScreen } from "./screens/PairScreen";
 import { PortfolioScreen } from "./screens/PortfolioScreen";
@@ -497,27 +498,12 @@ export function App() {
       <div className="shell">
         {rail}
         <div className="app">
-          <div className="top">
-            <div>
-              <div className="brand">XCP Book</div>
-              <h1>Trade desk</h1>
-            </div>
-          </div>
-          <div className="address-bar">
-            <input
-              value={input}
-              onChange={(e) => setInput(e.target.value)}
-              onKeyDown={(e) => e.key === "Enter" && load()}
-              placeholder="bc1p… or 1…"
-              spellCheck={false}
-            />
-            <button className="btn primary" onClick={load}>
-              Load
-            </button>
-          </div>
-          <div className="empty">
-            {error ?? "Add a named watch, or paste an address to open a book."}
-          </div>
+          <Landing
+            input={input}
+            error={error}
+            onChange={setInput}
+            onLoad={load}
+          />
         </div>
       </div>
     );
