@@ -1,0 +1,10 @@
+node_modules
+dist
+.superpowers
+.cursor
+docs/superpowers
+*.local
+.DS_Store
+.env
+.env.*
+
