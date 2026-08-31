@@ -317,7 +317,9 @@ describe("fetchPooledLaunches", () => {
     const launches = await fetchPooledLaunches();
     expect(launches.map((l) => l.asset)).toEqual(["PEPECASH"]);
     expect(launches[0]?.status).toBe("listed");
-    expect(fetch).toHaveBeenCalledWith("/core/v2/pools?verbose=true");
+    expect(fetch).toHaveBeenCalledWith("/core/v2/pools?verbose=true", {
+      cache: "no-store",
+    });
   });
 
   it("still lists SAMPLEDEEP/XCP when meme-meme and empty sibling pools come first", async () => {
@@ -446,7 +448,9 @@ describe("fetchTipBlock", () => {
     } as Response);
 
     await expect(fetchTipBlock()).resolves.toBe(964500);
-    expect(fetch).toHaveBeenCalledWith("/core/v2/blocks?limit=1");
+    expect(fetch).toHaveBeenCalledWith("/core/v2/blocks?limit=1", {
+      cache: "no-store",
+    });
   });
 
   it("rejects on HTTP error", async () => {
@@ -500,6 +504,7 @@ describe("fetchAddressOrders", () => {
     expect(rows[0]?.give_asset).toBe("NAKAMOTOFUN");
     expect(fetch).toHaveBeenCalledWith(
       "/core/v2/addresses/bc1p1/orders?verbose=true",
+      { cache: "no-store" },
     );
   });
 });

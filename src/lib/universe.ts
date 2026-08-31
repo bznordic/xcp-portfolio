@@ -115,8 +115,10 @@ type CorePage<T> = {
 
 const SAT = 1e8;
 
+export const LIVE_FETCH: RequestInit = { cache: "no-store" };
+
 async function coreGet<T>(path: string): Promise<T> {
-  const res = await fetch(`/core${path}`);
+  const res = await fetch(`/core${path}`, LIVE_FETCH);
   if (!res.ok) throw new Error(`core ${path} ${res.status}`);
   return (await res.json()) as T;
 }
@@ -140,7 +142,10 @@ async function fetchFairminters(status: string): Promise<CoreFairminter[]> {
 }
 
 async function fetchPool(asset: string): Promise<PoolRow | null> {
-  const res = await fetch(`/core/v2/pools/${encodeURIComponent(asset)}/XCP`);
+  const res = await fetch(
+    `/core/v2/pools/${encodeURIComponent(asset)}/XCP`,
+    LIVE_FETCH,
+  );
   if (res.status === 404) return null;
   if (!res.ok) throw new Error(`core pool ${asset} ${res.status}`);
   const body = (await res.json()) as CorePage<PoolRow>;
@@ -251,6 +256,7 @@ export async function fetchFairminter(
 ): Promise<CoreFairminter | null> {
   const res = await fetch(
     `/core/v2/assets/${encodeURIComponent(asset)}/fairminters?verbose=true`,
+    LIVE_FETCH,
   );
   if (res.status === 404) return null;
   if (!res.ok) throw new Error(`core fairminter ${asset} ${res.status}`);

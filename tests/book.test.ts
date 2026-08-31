@@ -1,5 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { type Position } from "../src/data/fixture";
+import type { Launch } from "../src/lib/setups";
+import { MINT_PRICE } from "../src/lib/xcp69";
 import {
   SAMPLE_FILLS as FILLS,
   SAMPLE_POSITIONS as POSITIONS,
@@ -16,7 +18,9 @@ import {
   escrowFills,
   escrowPositionsFromFairmints,
   holdingQuote,
+  vsMintLabel,
   liveEquityWindow,
+  mintPriceXcpFor,
   mintLoseFills,
   mergeBook,
   orderToFill,
@@ -532,6 +536,104 @@ describe("holdingQuote", () => {
     });
     expect(q.purchasePriceXcp).toBeNull();
     expect(q.roiXcp).toBe(-1);
+  });
+
+  it("quotes vs mint as a 1 XCP mint, not the bag", () => {
+    const gooby = POSITIONS.find((p) => p.asset === "SAMPLEGAMMA")!;
+    const q = holdingQuote(gooby, MINT_PRICE);
+    const multiple = gooby.priceXcp! / MINT_PRICE - 1;
+    expect(q.mintPriceXcp).toBe(MINT_PRICE);
+    expect(q.vsMintXcp).toBeCloseTo(multiple, 12);
+    expect(q.vsMintPct).toBeCloseTo(multiple * 100, 12);
+    expect(q.vsMintXcp).not.toBeCloseTo(
+      gooby.qty * (gooby.priceXcp! - MINT_PRICE),
+      4,
+    );
+    expect(q.roiXcp).toBe(gooby.pnlXcp);
+    const smaller = holdingQuote({ ...gooby, qty: gooby.qty / 2 }, MINT_PRICE);
+    expect(smaller.vsMintXcp).toBeCloseTo(q.vsMintXcp!, 12);
+    expect(smaller.vsMintPct).toBeCloseTo(q.vsMintPct!, 12);
+  });
+
+  it("labels vs mint as an XCP multiple, not USD since mint", () => {
+    expect(vsMintLabel(0.00015222, MINT_PRICE)).toBe("15.22× · +1422.20%");
+  });
+
+  it("hides vs mint when there is no XCP-69 mint", () => {
+    const gooby = POSITIONS.find((p) => p.asset === "SAMPLEGAMMA")!;
+    const q = holdingQuote(gooby, null);
+    expect(q.mintPriceXcp).toBeNull();
+    expect(q.vsMintXcp).toBeNull();
+    expect(q.vsMintPct).toBeNull();
+  });
+
+  it("shows mint price on escrow but not vs-mint performance", () => {
+    const escrow = POSITIONS.find((p) => p.asset === "SAMPLEESCROW")!;
+    const q = holdingQuote(escrow, MINT_PRICE);
+    expect(q.mintPriceXcp).toBe(MINT_PRICE);
+    expect(q.vsMintXcp).toBeNull();
+    expect(q.vsMintPct).toBeNull();
+  });
+});
+
+describe("mintPriceXcpFor", () => {
+  it("uses the XCP-69 mint on graduated and minting names", () => {
+    const gooby = POSITIONS.find((p) => p.asset === "SAMPLEGAMMA")!;
+    const launch = UNIVERSE_FIXTURE.find((l) => l.asset === "SAMPLEGAMMA");
+    expect(mintPriceXcpFor(gooby, launch)).toBe(MINT_PRICE);
+  });
+
+  it("uses the XCP-69 mint on a listed name even if you never minted", () => {
+    const pos: Position = {
+      asset: "NAKAMOTOFUN",
+      kind: "token",
+      qty: 200000,
+      priceXcp: 0.000015,
+      markXcp: 3,
+      costXcp: 1,
+      pnlXcp: 2,
+      pnlPct: 200,
+    };
+    const listed: Launch = {
+      asset: "NAKAMOTOFUN",
+      status: "listed",
+      mark: 0.000015,
+      poolXcp: 10,
+      fill: null,
+      blocksLeft: null,
+      blocksSinceOpen: null,
+      issuer: "unknown",
+      you: "held",
+      youSleeveWt: 0,
+      youMintPaidXcp: 0,
+    };
+    expect(mintPriceXcpFor(pos, listed, true)).toBe(MINT_PRICE);
+    expect(mintPriceXcpFor(pos, undefined, true)).toBe(MINT_PRICE);
+    expect(mintPriceXcpFor(pos, listed, false)).toBeNull();
+  });
+
+  it("has no mint on a listed Core pool", () => {
+    const gooby = POSITIONS.find((p) => p.asset === "SAMPLEGAMMA")!;
+    expect(
+      mintPriceXcpFor(gooby, {
+        asset: "SAMPLEGAMMA",
+        status: "listed",
+        mark: 0.0000186,
+        poolXcp: 600,
+        fill: null,
+        blocksLeft: null,
+        blocksSinceOpen: null,
+        issuer: "unknown",
+        you: "held",
+        youSleeveWt: 0,
+        youMintPaidXcp: 0,
+      }),
+    ).toBeNull();
+  });
+
+  it("uses mint on escrow even without a launch row", () => {
+    const escrow = POSITIONS.find((p) => p.asset === "SAMPLEESCROW")!;
+    expect(mintPriceXcpFor(escrow, undefined)).toBe(MINT_PRICE);
   });
 });
 

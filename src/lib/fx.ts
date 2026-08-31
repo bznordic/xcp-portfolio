@@ -1,4 +1,5 @@
 import { FX } from "../data/fixture";
+import { LIVE_FETCH } from "./universe";
 
 export type FxSpot = { xcpPerBtc: number; usdPerBtc: number };
 
@@ -55,6 +56,7 @@ export function btcSatsFromMempoolAddress(row: MempoolAddressStats): number {
 export async function fetchAddressBtcSats(address: string): Promise<number> {
   const res = await fetch(
     `/mempool/address/${encodeURIComponent(address)}`,
+    LIVE_FETCH,
   );
   if (!res.ok) throw new Error(`mempool address ${res.status}`);
   const body = (await res.json()) as MempoolAddressStats;
@@ -76,6 +78,10 @@ type CorePage<T> = {
 const XCP_VEND = 100_000_000;
 
 let cachedFloor: number | null = null;
+
+export function forgetCachedXcpFloor() {
+  cachedFloor = null;
+}
 
 export function dispenserFloorXcpPerBtc(rows: DispenserRow[]): number | null {
   let bestSats: number | null = null;
@@ -104,7 +110,7 @@ async function coreDispensersPage(
 ): Promise<CorePage<DispenserRow>> {
   const qs = new URLSearchParams({ status: "open", limit: "100" });
   if (cursor) qs.set("cursor", cursor);
-  const res = await fetch(`/core/v2/assets/XCP/dispensers?${qs}`);
+  const res = await fetch(`/core/v2/assets/XCP/dispensers?${qs}`, LIVE_FETCH);
   if (!res.ok) throw new Error(`core dispensers ${res.status}`);
   return (await res.json()) as CorePage<DispenserRow>;
 }
@@ -131,7 +137,7 @@ export async function fetchXcpBtcFloor(): Promise<number> {
 }
 
 export async function fetchUsdPerBtc(): Promise<number> {
-  const res = await fetch("/fx");
+  const res = await fetch("/fx", LIVE_FETCH);
   if (!res.ok) throw new Error(`fx ${res.status}`);
   const body = (await res.json()) as { USD?: number };
   if (body.USD == null || !(body.USD > 0)) throw new Error("fx missing USD");

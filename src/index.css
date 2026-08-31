@@ -172,6 +172,15 @@ h1 {
   color: var(--muted);
   font-size: 12px;
   text-align: right;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 8px;
+}
+
+.meta .btn {
+  padding: 6px 10px;
+  font-size: 12px;
 }
 
 .address-bar {
@@ -204,6 +213,11 @@ h1 {
 .chip:hover,
 .watch-row:hover {
   border-color: #4a4c52;
+}
+
+.btn:disabled {
+  opacity: 0.45;
+  cursor: wait;
 }
 
 .btn.primary {
@@ -1041,6 +1055,7 @@ td.r {
   }
   .meta {
     text-align: left;
+    align-items: flex-start;
   }
   .pair-head {
     flex-direction: column;

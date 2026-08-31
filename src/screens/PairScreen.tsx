@@ -1,5 +1,6 @@
 import { type Fill, type Position } from "../data/fixture";
 import { quotesFor } from "../data/universe-fixture";
+import { assetIsXcp69, assetVsMint, mintPriceXcpFor, vsMintLabel } from "../lib/book";
 import {
   fmtPct,
   fmtPrice,
@@ -7,7 +8,7 @@ import {
   fmtXcp,
 } from "../lib/format";
 import type { Launch } from "../lib/setups";
-import { MINT_PRICE, THIN_IMPACT } from "../lib/xcp69";
+import { THIN_IMPACT, type Xcp69Fairminter } from "../lib/xcp69";
 import { xcpFunOrderLabel } from "../lib/xcpFun";
 import { OrderLink } from "./OrderLink";
 import { SetupsRail } from "./SetupsRail";
@@ -27,6 +28,7 @@ export function PairScreen({
   impactByAsset,
   positions,
   fills,
+  minters = {},
   onOpenPortfolio,
   onOpenPair,
 }: {
@@ -36,6 +38,7 @@ export function PairScreen({
   impactByAsset: Record<string, number>;
   positions: Position[];
   fills: Fill[];
+  minters?: Record<string, Xcp69Fairminter>;
   onOpenPortfolio: (asset: string) => void;
   onOpenPair: (asset: string) => void;
 }) {
@@ -43,8 +46,26 @@ export function PairScreen({
   const pos = positions.find((p) => p.asset === asset);
   const quotes = quotesFor(asset, launch);
   const thin = quotes.some((q) => q.impact > THIN_IMPACT);
+  const quotePos =
+    pos ??
+    ({
+      asset,
+      kind: "token",
+      qty: 1,
+      priceXcp: launch?.mark ?? 0,
+      markXcp: 0,
+      costXcp: 0,
+      pnlXcp: 0,
+      pnlPct: 0,
+    } satisfies Position);
+  const mintPrice = mintPriceXcpFor(
+    quotePos,
+    launch,
+    assetIsXcp69(launch, minters[asset]),
+  );
+  const mark = launch?.mark ?? null;
   const vsMint =
-    launch?.mark != null ? (launch.mark / MINT_PRICE - 1) * 100 : null;
+    mark != null && mintPrice != null ? assetVsMint(mark, mintPrice) : null;
 
   return (
     <div className="pair">
@@ -55,14 +76,17 @@ export function PairScreen({
             {asset}/XCP
           </h2>
           <div className="pair-mark">
-            {launch?.mark != null ? `${fmtPrice(launch.mark)} XCP` : "—"}
+            {mark != null ? `${fmtPrice(mark)} XCP` : "—"}
           </div>
           <div className="muted">
-            {launch?.status === "listed" ? (
+            {launch?.status === "listed" && mintPrice == null ? (
               "Core TOKEN/XCP pool · not an XCP-69 mint"
-            ) : vsMint != null ? (
+            ) : vsMint != null && mark != null && mintPrice != null ? (
               <>
-                vs mint <span className={tone(vsMint)}>{fmtPct(vsMint)}</span>
+                vs mint{" "}
+                <span className={tone(vsMint.xcp)}>
+                  {vsMintLabel(mark, mintPrice)}
+                </span>
               </>
             ) : (
               "vs mint —"

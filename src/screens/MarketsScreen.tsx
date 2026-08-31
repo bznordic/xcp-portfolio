@@ -1,5 +1,6 @@
 import { useMemo, useState } from "react";
-import { fmtPct, fmtPrice, fmtXcp } from "../lib/format";
+import { vsMintLabel } from "../lib/book";
+import { fmtPrice, fmtXcp } from "../lib/format";
 import { rankSetups, type Launch } from "../lib/setups";
 import {
   FRESH_GRAD_BLOCKS,
@@ -108,7 +109,7 @@ function fillLabel(launch: Launch): string {
 
 function vsMint(launch: Launch): string {
   if (launch.status === "listed" || launch.mark == null) return "—";
-  return fmtPct((launch.mark / MINT_PRICE - 1) * 100);
+  return vsMintLabel(launch.mark, MINT_PRICE);
 }
 
 export function impactCell(

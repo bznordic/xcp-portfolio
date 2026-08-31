@@ -36,7 +36,6 @@ import {
   remainingCostByAsset,
   type CoreFairmint,
   type CoreOrder,
-  type MinterStatus,
 } from "./lib/book";
 import {
   loadCostOverrides,
@@ -53,7 +52,7 @@ import {
   saveWatches,
   upsertWatch,
 } from "./lib/watchAddress";
-import { fetchAddressBtcSats, fetchFxSpot } from "./lib/fx";
+import { fetchAddressBtcSats, fetchFxSpot, forgetCachedXcpFloor } from "./lib/fx";
 import { isDustQty } from "./lib/format";
 import {
   loadPaidInSats,
@@ -73,6 +72,7 @@ import {
   impactMapFromLaunches,
   mergeLaunches,
   overlayBook,
+  type CoreFairminter,
   type PoolMark,
 } from "./lib/universe";
 import { Landing } from "./screens/Landing";
@@ -89,7 +89,7 @@ const TABS: { id: DeskTab; label: string }[] = [
   { id: "pair", label: "Pair" },
 ];
 
-const POOL_POLL_MS = 20_000;
+const POOL_POLL_MS = 8_000;
 const FIXTURE_ASSETS = UNIVERSE_FIXTURE.map((row) => row.asset);
 const FIXTURE_TOKEN_NAMES = POSITIONS.filter((p) => p.kind === "token").map(
   (p) => p.asset,
@@ -115,7 +115,7 @@ export function App() {
   const [fairmints, setFairmints] = useState<CoreFairmint[]>([]);
   const [orders, setOrders] = useState<CoreOrder[]>([]);
   const [minterByAsset, setMinterByAsset] = useState<
-    Record<string, MinterStatus>
+    Record<string, CoreFairminter>
   >({});
   const [liveCash, setLiveCash] = useState<number | null>(null);
   const [extraTokens, setExtraTokens] = useState<Position[]>([]);
@@ -128,6 +128,7 @@ export function App() {
   const [paidInSats, setPaidInSats] = useState<number | null>(null);
   const [liveMarks, setLiveMarks] = useState<Record<string, PoolMark>>({});
   const [tick, setTick] = useState(0);
+  const [refreshing, setRefreshing] = useState(false);
 
   const liveLoading = live === null && !coreUnreachable;
   const displayTip = tipBlock ?? TIP_BLOCK;
@@ -208,7 +209,6 @@ export function App() {
     }, 4000);
     void (async () => {
       setCoreUnreachable(false);
-      setLive(null);
       let tip = TIP_BLOCK;
       try {
         tip = await fetchTipBlock();
@@ -233,13 +233,15 @@ export function App() {
           fetchAddressOrders(loaded),
         ]);
         if (cancelled) return;
-        const minters = await fetchFairmintersForAssets(
-          mints.map((m) => m.asset),
-        );
-        if (cancelled) return;
         const cash = bals.find((row) => row.asset === "XCP")?.qty;
         const known = new Set(FIXTURE_TOKEN_NAMES);
         const held = bals.filter((row) => row.asset !== "XCP" && row.qty > 0);
+        const minters = await fetchFairmintersForAssets([
+          ...mints.map((m) => m.asset),
+          ...held.map((row) => row.asset),
+          pairAsset ?? "",
+        ]);
+        if (cancelled) return;
         const marks = await fetchPoolMarks([
           ...FIXTURE_ASSETS,
           ...FIXTURE_TOKEN_NAMES,
@@ -248,7 +250,7 @@ export function App() {
         if (cancelled) return;
         setFairmints(mints);
         setOrders(liveOrders);
-        setMinterByAsset(minters);
+        setMinterByAsset((prev) => ({ ...prev, ...minters }));
         if (cash != null) setLiveCash(cash);
         setLiveQty(qtyByAssetFromBalances(bals));
         setLiveMarks((prev) => ({ ...prev, ...marks }));
@@ -274,6 +276,7 @@ export function App() {
       } catch {
         if (!cancelled) setLive(null);
       }
+      if (!cancelled) setRefreshing(false);
     })();
     return () => {
       cancelled = true;
@@ -331,12 +334,16 @@ export function App() {
               fetchAddressFairmints(loaded),
               fetchAddressOrders(loaded),
             ]);
-            const minters = await fetchFairmintersForAssets(
-              mints.map((m) => m.asset),
-            );
+            const minters = await fetchFairmintersForAssets([
+              ...mints.map((m) => m.asset),
+              ...bals
+                .filter((row) => row.asset !== "XCP" && row.qty > 0)
+                .map((row) => row.asset),
+              pairAsset ?? "",
+            ]);
             setFairmints(mints);
             setOrders(liveOrders);
-            setMinterByAsset(minters);
+            setMinterByAsset((prev) => ({ ...prev, ...minters }));
           } catch {
             /* keep last mints until Core answers */
           }
@@ -355,6 +362,13 @@ export function App() {
     }, POOL_POLL_MS);
     return () => window.clearInterval(id);
   }, [loaded, live, pairAsset]);
+
+  function reloadPrices() {
+    if (!loaded || refreshing) return;
+    forgetCachedXcpFloor();
+    setRefreshing(true);
+    setTick((n) => n + 1);
+  }
 
   function persistWatches(next: typeof watches) {
     saveWatches(next);
@@ -523,9 +537,20 @@ export function App() {
           </h1>
         </div>
         <div className="meta">
-          {shortAddress(loaded)} · blk {displayTip.toLocaleString()} ·{" "}
-          {Object.keys(liveMarks).length > 0 ? "live pools" : "recorded"}
-          {coreUnreachable ? " · book fallback" : liveLoading ? " · loading markets" : ""}
+          <div>
+            {shortAddress(loaded)} · blk {displayTip.toLocaleString()} ·{" "}
+            {Object.keys(liveMarks).length > 0 ? "live pools" : "recorded"}
+            {coreUnreachable ? " · book fallback" : liveLoading ? " · loading markets" : ""}
+            {refreshing ? " · reloading" : ""}
+          </div>
+          <button
+            type="button"
+            className="btn"
+            disabled={refreshing}
+            onClick={reloadPrices}
+          >
+            {refreshing ? "Reloading…" : "Reload prices"}
+          </button>
         </div>
       </div>
 
@@ -583,6 +608,8 @@ export function App() {
           onOpenSetups={openSetups}
           onCostOverride={setAssetCost}
           onPaidIn={setPaidIn}
+          launches={launches}
+          minters={minterByAsset}
         />
       ) : null}
       {tab === "markets" ? (
@@ -604,6 +631,7 @@ export function App() {
           impactByAsset={impactByAsset}
           positions={positions}
           fills={fills}
+          minters={minterByAsset}
           onOpenPortfolio={openPortfolio}
           onOpenPair={openPair}
         />

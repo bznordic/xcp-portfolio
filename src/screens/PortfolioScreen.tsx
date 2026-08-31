@@ -9,9 +9,13 @@ import {
 import {
   holdingQuote,
   liveEquityWindow,
+  assetIsXcp69,
+  mintPriceXcpFor,
+  vsMintLabel,
   realizedFromFills,
   tradingPnlXcp,
 } from "../lib/book";
+import type { Launch } from "../lib/setups";
 import {
   labelIndices,
   nearestIndex,
@@ -37,7 +41,7 @@ import {
   fmtXcp,
   isDustQty,
 } from "../lib/format";
-import { CASH_BUFFER_XCP } from "../lib/xcp69";
+import { CASH_BUFFER_XCP, type Xcp69Fairminter } from "../lib/xcp69";
 import { fmtPaidInBtc, parsePaidInToSats } from "../lib/paidIn";
 import { xcpFunOrderLabel } from "../lib/xcpFun";
 import { OrderLink } from "./OrderLink";
@@ -360,6 +364,8 @@ export function PortfolioScreen({
   onOpenSetups,
   onCostOverride,
   onPaidIn,
+  launches = [],
+  minters = {},
 }: {
   timeframe: Timeframe;
   selected: string | null;
@@ -376,6 +382,8 @@ export function PortfolioScreen({
   onOpenSetups: () => void;
   onCostOverride: (asset: string, costXcp: number | null) => void;
   onPaidIn: (sats: number | null) => void;
+  launches?: Launch[];
+  minters?: Record<string, Xcp69Fairminter>;
 }) {
   const totalXcp = positions.reduce((s, p) => s + p.markXcp, 0);
   const window = liveEquityWindow(
@@ -386,6 +394,7 @@ export function PortfolioScreen({
   const visible = positions.filter(
     (p) => p.kind !== "cash" && !isDustQty(p.qty),
   );
+  const launchByAsset = new Map(launches.map((l) => [l.asset, l]));
   const rows = selected
     ? positions.filter((p) => p.asset === selected)
     : positions.filter((p) => p.kind === "cash" || !isDustQty(p.qty));
@@ -622,7 +631,15 @@ export function PortfolioScreen({
         <h2>Holdings · XCP</h2>
         <div className="mosaic">
           {visible.map((p) => {
-            const q = holdingQuote(p);
+            const launch = launchByAsset.get(p.asset);
+            const q = holdingQuote(
+              p,
+              mintPriceXcpFor(
+                p,
+                launch,
+                assetIsXcp69(launch, minters[p.asset]),
+              ),
+            );
             return (
             <div key={p.asset} className={`tile ${selected === p.asset ? "on" : ""}`}>
               <button type="button" className="tile-hit" onClick={() => onToggleAsset(p.asset)}>
@@ -671,11 +688,31 @@ export function PortfolioScreen({
                       />
                     </div>
                     <div className="stat">
+                      <span className="k">Mint</span>
+                      <span>
+                        {q.mintPriceXcp == null
+                          ? "—"
+                          : `${fmtPrice(q.mintPriceXcp)} XCP / token`}
+                      </span>
+                    </div>
+                    <div className="stat">
                       <span className="k">ROI</span>
                       <span className={tone(q.roiXcp)}>
                         {p.kind === "escrow"
                           ? "—"
                           : `${fmtSigned(q.roiXcp)} XCP · ${fmtPct(q.roiPct)}`}
+                      </span>
+                    </div>
+                    <div className="stat">
+                      <span className="k">vs mint</span>
+                      <span
+                        className={
+                          q.vsMintXcp == null ? "muted" : tone(q.vsMintXcp)
+                        }
+                      >
+                        {q.vsMintXcp == null || q.vsMintPct == null
+                          ? "—"
+                          : vsMintLabel(q.marketPriceXcp!, q.mintPriceXcp!)}
                       </span>
                     </div>
                   </div>
@@ -775,8 +812,11 @@ export function PortfolioScreen({
           </table>
           <p className="note">
             Mark is the live TOKEN/XCP pool. Paid is XCP / token; the figure
-            after · is total XCP paid. Click Paid or Cost to overwrite; blank
-            clears to the tape.
+            after · is total XCP paid. Mint and vs mint are the live TOKEN/XCP
+            pool versus the XCP-69 mint (0.00001 XCP / token), as a multiple
+            and an XCP percent — not xcp.fun’s USD “% since mint”. ROI is vs
+            what you paid.
+            Click Paid or Cost to overwrite; blank clears to the tape.
           </p>
         </div>
 

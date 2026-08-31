@@ -1,7 +1,8 @@
 import type { EquityPoint, Fill, Position } from "../data/fixture";
-import { isDustQty } from "./format";
+import { fmtPct, isDustQty } from "./format";
 import type { Launch } from "./setups";
 import type { PoolMark } from "./universe";
+import { isXcp69, MINT_PRICE, type Xcp69Fairminter } from "./xcp69";
 
 export type CoreFairmint = {
   asset: string;
@@ -324,15 +325,85 @@ export type HoldingQuote = {
   purchasePriceXcp: number | null;
   roiXcp: number;
   roiPct: number;
+  mintPriceXcp: number | null;
+  vsMintXcp: number | null;
+  vsMintPct: number | null;
 };
 
-export function holdingQuote(pos: Position): HoldingQuote {
+export function mintPriceFromMinter(
+  minter?: { price?: number; quantity_by_price?: number } | null,
+): number | null {
+  if (!minter) return null;
+  const price = Number(minter.price);
+  const qty = Number(minter.quantity_by_price);
+  if (!(price > 0) || !(qty > 0)) return null;
+  return price / qty;
+}
+
+export function assetIsXcp69(
+  launch: Launch | undefined,
+  minter?: Xcp69Fairminter | null,
+): boolean {
+  if (minter && (isXcp69(minter) || mintPriceFromMinter(minter) != null)) {
+    return true;
+  }
+  return launch != null && launch.status !== "listed";
+}
+
+export function mintPriceXcpFor(
+  pos: Position,
+  launch: Launch | undefined,
+  xcp69 = false,
+): number | null {
+  if (pos.kind === "cash") return null;
+  if (pos.kind === "escrow") return MINT_PRICE;
+  if (xcp69 || assetIsXcp69(launch)) return MINT_PRICE;
+  return null;
+}
+
+/** Market vs mint for a 1 XCP mint. Not a bag. */
+export function assetVsMint(
+  marketPriceXcp: number,
+  mintPriceXcp: number,
+): { xcp: number; pct: number } {
+  const multiple = marketPriceXcp / mintPriceXcp - 1;
+  return { xcp: multiple, pct: multiple * 100 };
+}
+
+export function vsMintLabel(
+  marketPriceXcp: number,
+  mintPriceXcp: number,
+): string {
+  const vs = assetVsMint(marketPriceXcp, mintPriceXcp);
+  return `${(marketPriceXcp / mintPriceXcp).toFixed(2)}× · ${fmtPct(vs.pct)}`;
+}
+
+export function holdingQuote(
+  pos: Position,
+  mintPriceXcp: number | null = null,
+): HoldingQuote {
+  const market = pos.priceXcp;
+  let vsMintXcp: number | null = null;
+  let vsMintPct: number | null = null;
+  if (
+    mintPriceXcp != null &&
+    mintPriceXcp !== 0 &&
+    pos.kind === "token" &&
+    market != null
+  ) {
+    const vs = assetVsMint(market, mintPriceXcp);
+    vsMintXcp = vs.xcp;
+    vsMintPct = vs.pct;
+  }
   return {
     valueXcp: pos.markXcp,
-    marketPriceXcp: pos.priceXcp,
+    marketPriceXcp: market,
     purchasePriceXcp: pos.qty > 0 ? pos.costXcp / pos.qty : null,
     roiXcp: pos.pnlXcp,
     roiPct: pos.pnlPct,
+    mintPriceXcp,
+    vsMintXcp,
+    vsMintPct,
   };
 }
 
