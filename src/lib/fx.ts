@@ -83,16 +83,25 @@ export function forgetCachedXcpFloor() {
   cachedFloor = null;
 }
 
+function liquidOneXcpSats(sats: number[]): number | null {
+  const sorted = [...sats].sort((a, b) => a - b);
+  if (sorted.length === 0) return null;
+  let i = 0;
+  while (i < sorted.length - 1 && sorted[i] * 2 <= sorted[i + 1]) i += 1;
+  return sorted[i] ?? null;
+}
+
 export function dispenserFloorXcpPerBtc(rows: DispenserRow[]): number | null {
-  let bestSats: number | null = null;
+  const oneXcpSats: number[] = [];
   for (const d of rows) {
     const open = d.status === 0 || d.status === "open";
     if (!open || Number(d.give_remaining) <= 0) continue;
     if (Number(d.give_quantity) !== XCP_VEND) continue;
     const sats = Number(d.satoshirate);
     if (!(sats > 0)) continue;
-    if (bestSats == null || sats < bestSats) bestSats = sats;
+    oneXcpSats.push(sats);
   }
+  const bestSats = liquidOneXcpSats(oneXcpSats);
   if (bestSats == null) return null;
   return bestSats / 1e8;
 }
@@ -116,7 +125,6 @@ async function coreDispensersPage(
 }
 
 export async function fetchXcpBtcFloor(): Promise<number> {
-  if (cachedFloor != null && cachedFloor < 1000 / 1e8) cachedFloor = null;
   let lastError: unknown;
   for (let attempt = 0; attempt < 3; attempt++) {
     try {

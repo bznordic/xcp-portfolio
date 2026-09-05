@@ -54,6 +54,7 @@ import {
 } from "./lib/watchAddress";
 import { fetchAddressBtcSats, fetchFxSpot, forgetCachedXcpFloor } from "./lib/fx";
 import { isDustQty } from "./lib/format";
+import { CORE_POLL_MS } from "./lib/poll";
 import {
   loadPaidInSats,
   resolvedStartBtcSats,
@@ -65,6 +66,7 @@ import {
   fetchAddressFairmints,
   fetchAddressOrders,
   fetchFairmintersForAssets,
+  fetchOpenPairOrders,
   fetchPooledLaunches,
   fetchPoolMarks,
   fetchTipBlock,
@@ -89,7 +91,6 @@ const TABS: { id: DeskTab; label: string }[] = [
   { id: "pair", label: "Pair" },
 ];
 
-const POOL_POLL_MS = 8_000;
 const FIXTURE_ASSETS = UNIVERSE_FIXTURE.map((row) => row.asset);
 const FIXTURE_TOKEN_NAMES = POSITIONS.filter((p) => p.kind === "token").map(
   (p) => p.asset,
@@ -114,6 +115,8 @@ export function App() {
   const [coreUnreachable, setCoreUnreachable] = useState(false);
   const [fairmints, setFairmints] = useState<CoreFairmint[]>([]);
   const [orders, setOrders] = useState<CoreOrder[]>([]);
+  const [pairOrders, setPairOrders] = useState<CoreOrder[]>([]);
+  const [pairOrdersLoading, setPairOrdersLoading] = useState(false);
   const [minterByAsset, setMinterByAsset] = useState<
     Record<string, CoreFairminter>
   >({});
@@ -359,9 +362,29 @@ export function App() {
         .catch(() => {
           /* keep last wallet BTC */
         });
-    }, POOL_POLL_MS);
+    }, CORE_POLL_MS);
     return () => window.clearInterval(id);
   }, [loaded, live, pairAsset]);
+
+  useEffect(() => {
+    if (!pairAsset || tab !== "pair") return;
+    let cancelled = false;
+    setPairOrders([]);
+    setPairOrdersLoading(true);
+    void fetchOpenPairOrders(pairAsset)
+      .then((rows) => {
+        if (!cancelled) setPairOrders(rows);
+      })
+      .catch(() => {
+        if (!cancelled) setPairOrders([]);
+      })
+      .finally(() => {
+        if (!cancelled) setPairOrdersLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [pairAsset, tab, tick]);
 
   function reloadPrices() {
     if (!loaded || refreshing) return;
@@ -391,6 +414,7 @@ export function App() {
     setLive(null);
     setFairmints([]);
     setOrders([]);
+    setPairOrders([]);
     setMinterByAsset({});
     setLiveCash(null);
     setExtraTokens([]);
@@ -632,6 +656,8 @@ export function App() {
           positions={positions}
           fills={fills}
           minters={minterByAsset}
+          pairOrders={pairOrders}
+          pairOrdersLoading={pairOrdersLoading}
           onOpenPortfolio={openPortfolio}
           onOpenPair={openPair}
         />

@@ -3,6 +3,7 @@ import { SAMPLE_UNIVERSE as UNIVERSE_FIXTURE } from "./sample-desk";
 import type { Launch } from "../src/lib/setups";
 import {
   fetchAddressOrders,
+  fetchOpenPairOrders,
   fetchPooledLaunches,
   fetchPoolMarks,
   fetchFairminter,
@@ -462,6 +463,22 @@ describe("fetchTipBlock", () => {
     await expect(fetchTipBlock()).rejects.toThrow(/core.*blocks/i);
   });
 
+  it("retries 429 then returns the tip", async () => {
+    vi.mocked(fetch)
+      .mockResolvedValueOnce({
+        ok: false,
+        status: 429,
+        headers: new Headers({ "retry-after": "0" }),
+      } as Response)
+      .mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({ result: [{ block_index: 964500 }] }),
+      } as Response);
+
+    await expect(fetchTipBlock()).resolves.toBe(964500);
+    expect(fetch).toHaveBeenCalledTimes(2);
+  });
+
   it("rejects when block_index is missing", async () => {
     vi.mocked(fetch).mockResolvedValue({
       ok: true,
@@ -504,6 +521,62 @@ describe("fetchAddressOrders", () => {
     expect(rows[0]?.give_asset).toBe("NAKAMOTOFUN");
     expect(fetch).toHaveBeenCalledWith(
       "/core/v2/addresses/bc1p1/orders?verbose=true",
+      { cache: "no-store" },
+    );
+  });
+});
+
+describe("fetchOpenPairOrders", () => {
+  beforeEach(() => {
+    vi.stubGlobal("fetch", vi.fn());
+  });
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  it("pages open TOKEN/XCP orders for the pair", async () => {
+    vi.mocked(fetch)
+      .mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({
+          result: [
+            {
+              status: "open",
+              give_asset: "XCP",
+              get_asset: "SAMPLEGAMMA",
+              give_remaining_normalized: "2",
+              get_remaining_normalized: "200000",
+            },
+          ],
+          next_cursor: "9",
+        }),
+      } as Response)
+      .mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({
+          result: [
+            {
+              status: "open",
+              give_asset: "SAMPLEGAMMA",
+              get_asset: "XCP",
+              give_remaining_normalized: "100000",
+              get_remaining_normalized: "1.5",
+            },
+          ],
+        }),
+      } as Response);
+
+    const rows = await fetchOpenPairOrders("SAMPLEGAMMA");
+    expect(rows).toHaveLength(2);
+    expect(fetch).toHaveBeenNthCalledWith(
+      1,
+      "/core/v2/orders/SAMPLEGAMMA/XCP?status=open&verbose=true",
+      { cache: "no-store" },
+    );
+    expect(fetch).toHaveBeenNthCalledWith(
+      2,
+      "/core/v2/orders/SAMPLEGAMMA/XCP?status=open&verbose=true&cursor=9",
       { cache: "no-store" },
     );
   });

@@ -1,6 +1,7 @@
 import { type Fill, type Position } from "../data/fixture";
 import { quotesFor } from "../data/universe-fixture";
 import { assetIsXcp69, assetVsMint, mintPriceXcpFor, vsMintLabel } from "../lib/book";
+import { toDepthBook, type DepthOrder } from "../lib/depth";
 import {
   fmtPct,
   fmtPrice,
@@ -10,6 +11,7 @@ import {
 import type { Launch } from "../lib/setups";
 import { THIN_IMPACT, type Xcp69Fairminter } from "../lib/xcp69";
 import { xcpFunOrderLabel } from "../lib/xcpFun";
+import { DepthBook } from "./DepthBook";
 import { OrderLink } from "./OrderLink";
 import { SetupsRail } from "./SetupsRail";
 import { TokenArt } from "./TokenArt";
@@ -29,6 +31,8 @@ export function PairScreen({
   positions,
   fills,
   minters = {},
+  pairOrders = [],
+  pairOrdersLoading = false,
   onOpenPortfolio,
   onOpenPair,
 }: {
@@ -39,6 +43,8 @@ export function PairScreen({
   positions: Position[];
   fills: Fill[];
   minters?: Record<string, Xcp69Fairminter>;
+  pairOrders?: DepthOrder[];
+  pairOrdersLoading?: boolean;
   onOpenPortfolio: (asset: string) => void;
   onOpenPair: (asset: string) => void;
 }) {
@@ -162,6 +168,11 @@ export function PairScreen({
           </div>
         </>
       ) : null}
+
+      <DepthBook
+        book={toDepthBook(asset, pairOrders, launch?.mark, launch?.poolXcp)}
+        loading={pairOrdersLoading}
+      />
 
       <div className="grid-2 pair-body">
         <div className="panel">

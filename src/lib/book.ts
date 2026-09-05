@@ -111,6 +111,8 @@ export type CoreOrder = {
   get_asset: string;
   give_quantity_normalized?: string;
   get_quantity_normalized?: string;
+  give_remaining_normalized?: string;
+  get_remaining_normalized?: string;
 };
 
 export function orderToFill(order: CoreOrder): Fill | null {

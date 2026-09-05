@@ -25,6 +25,7 @@ Requires Node 20+. Source: [github.com/bznordic/xcp-portfolio](https://github.co
 ## What it does
 
 - Marks TOKEN/XCP from Counterparty Core pool reserves (XCP-69 grads and classic names like PEPECASH)
+- Pair screen: DEX bid/ask lots plus pool rungs at XCP-per-token, from Core `/v2/orders/{asset}/XCP`
 - Rebuilds cost from fairmints and filled orders; a sale withdraws XCP from remaining investment
 - Per-token ledger: mint / buy / sell → qty left and XCP still in
 - Markets: XCP-69 minting/graduated plus every TOKEN/XCP pool; setups rank upside vs mint (XCP-69 only)

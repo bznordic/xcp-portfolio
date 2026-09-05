@@ -117,8 +117,29 @@ const SAT = 1e8;
 
 export const LIVE_FETCH: RequestInit = { cache: "no-store" };
 
+function retryAfterMs(res: Response): number {
+  const raw = res.headers?.get?.("retry-after");
+  const sec = raw != null && raw !== "" ? Number(raw) : NaN;
+  if (Number.isFinite(sec) && sec >= 0) return sec * 1000;
+  return 1000;
+}
+
+async function coreFetch(path: string): Promise<Response> {
+  let last = 0;
+  for (let attempt = 0; attempt < 4; attempt++) {
+    const res = await fetch(`/core${path}`, LIVE_FETCH);
+    if (res.status === 429 && attempt < 3) {
+      last = 429;
+      await new Promise((r) => setTimeout(r, retryAfterMs(res)));
+      continue;
+    }
+    return res;
+  }
+  throw new Error(`core ${path} ${last}`);
+}
+
 async function coreGet<T>(path: string): Promise<T> {
-  const res = await fetch(`/core${path}`, LIVE_FETCH);
+  const res = await coreFetch(path);
   if (!res.ok) throw new Error(`core ${path} ${res.status}`);
   return (await res.json()) as T;
 }
@@ -142,9 +163,8 @@ async function fetchFairminters(status: string): Promise<CoreFairminter[]> {
 }
 
 async function fetchPool(asset: string): Promise<PoolRow | null> {
-  const res = await fetch(
-    `/core/v2/pools/${encodeURIComponent(asset)}/XCP`,
-    LIVE_FETCH,
+  const res = await coreFetch(
+    `/v2/pools/${encodeURIComponent(asset)}/XCP`,
   );
   if (res.status === 404) return null;
   if (!res.ok) throw new Error(`core pool ${asset} ${res.status}`);
@@ -254,9 +274,8 @@ function launchStatus(
 export async function fetchFairminter(
   asset: string,
 ): Promise<CoreFairminter | null> {
-  const res = await fetch(
-    `/core/v2/assets/${encodeURIComponent(asset)}/fairminters?verbose=true`,
-    LIVE_FETCH,
+  const res = await coreFetch(
+    `/v2/assets/${encodeURIComponent(asset)}/fairminters?verbose=true`,
   );
   if (res.status === 404) return null;
   if (!res.ok) throw new Error(`core fairminter ${asset} ${res.status}`);
@@ -353,6 +372,23 @@ export async function fetchAddressOrders(
     rows.push(...batch);
     if (!page.next_cursor) break;
     cursor = page.next_cursor;
+  }
+  return rows;
+}
+
+export async function fetchOpenPairOrders(asset: string): Promise<CoreOrder[]> {
+  const rows: CoreOrder[] = [];
+  let cursor: string | undefined;
+  const pair = `${encodeURIComponent(asset)}/XCP`;
+  for (;;) {
+    const qs = new URLSearchParams({ status: "open", verbose: "true" });
+    if (cursor) qs.set("cursor", cursor);
+    const page = await coreGet<CorePage<CoreOrder>>(`/v2/orders/${pair}?${qs}`);
+    const result = page.result;
+    const batch = Array.isArray(result) ? result : result ? [result] : [];
+    rows.push(...batch);
+    if (!page.next_cursor) break;
+    cursor = String(page.next_cursor);
   }
   return rows;
 }

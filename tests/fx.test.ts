@@ -29,6 +29,16 @@ describe("dispenserFloorXcpPerBtc", () => {
     ]);
     expect(floor).toBeCloseTo(0.000057, 10);
   });
+
+  it("skips a 1 XCP vend isolated far below the rest of the book", () => {
+    const floor = dispenserFloorXcpPerBtc([
+      { status: 0, satoshirate: 888, give_remaining: 200_000_000, give_quantity: 100_000_000 },
+      { status: 0, satoshirate: 9600, give_remaining: 5_500_000_000, give_quantity: 100_000_000 },
+      { status: 0, satoshirate: 9650, give_remaining: 16_400_000_000, give_quantity: 100_000_000 },
+      { status: 0, satoshirate: 9700, give_remaining: 4_700_000_000, give_quantity: 100_000_000 },
+    ]);
+    expect(floor).toBeCloseTo(0.000096, 10);
+  });
 });
 
 describe("toAggregateFiat", () => {

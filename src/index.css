@@ -931,6 +931,102 @@ td.r {
   margin-top: 8px;
 }
 
+.depth {
+  border: 1px solid var(--line);
+  background: var(--panel);
+  margin-bottom: 20px;
+}
+
+.depth-head {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 10px 14px;
+  border-bottom: 1px solid var(--line);
+  font-size: 11px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+.depth-cols,
+.depth-row {
+  display: grid;
+  grid-template-columns: 52px minmax(0, 1fr) minmax(0, 1.1fr) minmax(0, 0.8fr);
+  gap: 8px;
+  padding: 6px 14px;
+  font-variant-numeric: tabular-nums;
+}
+
+.depth-cols {
+  font-size: 11px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+.depth-row {
+  position: relative;
+  font-size: 13px;
+}
+
+.depth-row .depth-bar {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  right: 0;
+  opacity: 0.14;
+  pointer-events: none;
+}
+
+.depth-row.ask .depth-bar {
+  background: var(--down);
+}
+
+.depth-row.bid .depth-bar {
+  background: var(--up);
+}
+
+.depth-row.ask {
+  color: var(--down);
+}
+
+.depth-row.bid {
+  color: var(--up);
+}
+
+.depth-src {
+  position: relative;
+  text-transform: uppercase;
+  font-size: 11px;
+  letter-spacing: 0.06em;
+  color: var(--muted);
+}
+
+.depth .r {
+  position: relative;
+  text-align: right;
+}
+
+.depth-mark {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 8px 14px;
+  border-top: 1px solid var(--line);
+  border-bottom: 1px solid var(--line);
+  background: var(--panel-2);
+  font-variant-numeric: tabular-nums;
+}
+
+.depth-note {
+  margin: 0;
+  padding: 10px 14px;
+  border-top: 1px solid var(--line);
+  color: var(--muted);
+  font-size: 13px;
+}
+
 .landing {
   max-width: 820px;
 }
